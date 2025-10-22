@@ -9,9 +9,28 @@ interface FieldArrayEntry<TItem> {
 
 type FieldArrayField<TItem> = FieldArrayEntry<TItem> & Record<string, any>
 
+type JoinPath<Prefix extends string, Key extends string> = Prefix extends ''
+  ? Key
+  : `${Prefix}.${Key}`
+
+type ArrayFieldPathInternal<T, Prefix extends string = ''> = {
+  [K in keyof T & string]:
+    T[K] extends ReadonlyArray<any> | Array<any>
+      ? JoinPath<Prefix, K>
+      : T[K] extends Record<string, any>
+        ? ArrayFieldPathInternal<T[K], JoinPath<Prefix, K>>
+        : never
+}[keyof T & string]
+
+type ArrayFieldPath<T> = Extract<ArrayFieldPathInternal<T>, string> extends infer P
+  ? [P] extends [never]
+    ? string
+    : Extract<P, string>
+  : string
+
 export interface UseFieldArrayOptions<TValues extends Record<string, any>> {
   form: UseFormReturn<TValues>
-  name: string
+  name: ArrayFieldPath<TValues>
   keyName?: string
 }
 
