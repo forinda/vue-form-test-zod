@@ -28,7 +28,7 @@ type FormRadioGroupProps<
   label?: string
   description?: string
   error?: string | null
-  options: RadioOption[]
+  options: readonly RadioOption[] | RadioOption[]
   inline?: boolean
   disabled?: boolean
   registerOptions?: RegisterFieldOptions<any, FormValues<TForm>>

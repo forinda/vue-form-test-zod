@@ -196,7 +196,7 @@ type FormSelectProps<
   label?: string
   description?: string
   error?: string | null
-  options: SelectOption[]
+  options: readonly SelectOption[] | SelectOption[]
   placeholder?: string
   id?: string
   required?: boolean
