@@ -15,7 +15,6 @@
         </header>
           <!-- Progress Bar -->
           <SurveyProgress :current-step="currentStep" :total-steps="totalSteps" />
-{{ form.errors }}
           <form class="space-y-8" @submit.prevent="submitForm">
             <!-- Dynamic Step Content -->
             <PersonalInfoStep v-if="currentStep === 1" :form="form" />
