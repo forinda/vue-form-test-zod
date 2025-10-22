@@ -4,6 +4,7 @@ import { z } from 'zod'
 import FormCheckbox from './components/form/FormCheckbox.vue'
 import FormInput from './components/form/FormInput.vue'
 import FormRadioGroup from './components/form/FormRadioGroup.vue'
+import FormSelect from './components/form/FormSelect.vue'
 import FormTextarea from './components/form/FormTextarea.vue'
 import { useFieldArray } from './composables/useFieldArray'
 import { useForm } from './composables/useForm'
@@ -21,6 +22,30 @@ const contactOptions = [
   },
 ] as const satisfies Array<{ label: string; value: 'email' | 'phone'; description: string }>
 
+const skillOptions = [
+  { label: 'JavaScript', value: 'javascript' },
+  { label: 'TypeScript', value: 'typescript' },
+  { label: 'Vue.js', value: 'vue' },
+  { label: 'React', value: 'react' },
+  { label: 'Angular', value: 'angular' },
+  { label: 'Node.js', value: 'nodejs' },
+  { label: 'Python', value: 'python' },
+  { label: 'Java', value: 'java' },
+  { label: 'C#', value: 'csharp' },
+  { label: 'Go', value: 'go' },
+] as const satisfies Array<{ label: string; value: string }>
+
+const countryOptions = [
+  { label: 'United States', value: 'US' },
+  { label: 'United Kingdom', value: 'GB' },
+  { label: 'Canada', value: 'CA' },
+  { label: 'Germany', value: 'DE' },
+  { label: 'France', value: 'FR' },
+  { label: 'Australia', value: 'AU' },
+  { label: 'Japan', value: 'JP' },
+  { label: 'Netherlands', value: 'NL' },
+] as const satisfies Array<{ label: string; value: string }>
+
 const addressSchema = z.object({
   street: z.string().min(1, 'Street is required'),
   city: z.string().min(1, 'City is required'),
@@ -33,6 +58,7 @@ const profileSchema = z.object({
   email: z.string().email('Email must be valid'),
   age: z.number().min(18, 'You must be at least 18 years old').nullable(),
   bio: z.string().min(10, 'Tell us a little more (min. 10 characters)'),
+  skills: z.array(z.string()).min(1, 'Select at least one skill'),
 })
 
 const preferencesSchema = z.object({
@@ -63,6 +89,7 @@ const defaultValues: ProfileFormValues = {
     email: '',
     age: null,
     bio: '',
+    skills: [],
   },
   preferences: {
     contactMethod: 'email',
@@ -178,6 +205,18 @@ const addAddress = () => {
                 description="Give the community a sense of who you are — minimum of 10 characters."
                 required
               />
+
+              <FormSelect
+                :form="form"
+                name="profile.skills"
+                label="Technical Skills"
+                description="Select your primary technical skills and areas of expertise."
+                :options="skillOptions"
+                multiple
+                searchable
+                placeholder="Choose your skills..."
+                required
+              />
             </section>
 
             <section class="space-y-6">
@@ -282,11 +321,13 @@ const addAddress = () => {
                       placeholder="London"
                       required
                     />
-                    <FormInput
+                    <FormSelect
                       :form="form"
                       :name="`addresses.${index}.country`"
                       label="Country"
-                      placeholder="United Kingdom"
+                      :options="countryOptions"
+                      placeholder="Select country..."
+                      searchable
                       required
                     />
                   </div>
