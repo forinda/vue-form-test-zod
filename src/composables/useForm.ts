@@ -637,9 +637,13 @@ export function useForm<
   }
 
   function reset(valuesToSet?: Partial<TValues>) {
-    const nextValues = prepareInitialValues<TValues>(valuesToSet, schema);
+    // If no values are provided, use the original default values
+    // Otherwise, merge the provided values with the original defaults
+    const nextValues = valuesToSet 
+      ? prepareInitialValues<TValues>(valuesToSet, schema)
+      : deepClone(defaultValues.value);
+    
     replaceReactiveValues(values, nextValues);
-    defaultValues.value = deepClone(nextValues);
 
     Object.values(fieldStates).forEach((state) => {
       state.dirty = false;
@@ -934,7 +938,12 @@ function unsetDeepValue(target: any, path: string | PathSegment[]): void {
 function deepClone<T>(value: T): T {
   const structured = (globalThis as any).structuredClone;
   if (typeof structured === "function") {
-    return structured(value);
+    try {
+      return structured(value);
+    } catch {
+      // Fall back to JSON serialization if structuredClone fails
+      // This handles cases where objects contain non-cloneable properties
+    }
   }
   return JSON.parse(JSON.stringify(value)) as T;
 }
