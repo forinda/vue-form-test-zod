@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import FormCheckbox from './components/form/FormCheckbox.vue'
+import FormInput from './components/form/FormInput.vue'
+import FormRadioGroup from './components/form/FormRadioGroup.vue'
+import FormTextarea from './components/form/FormTextarea.vue'
 import { useFieldArray } from './composables/useFieldArray'
 import { useForm, type Validator } from './composables/useForm'
 
@@ -9,12 +13,19 @@ interface Address {
   country: string
 }
 
+type ContactMethod = 'email' | 'phone'
+
 interface ProfileFormValues {
   profile: {
     firstName: string
     lastName: string
     email: string
     age: number | null
+    bio: string
+  }
+  preferences: {
+    contactMethod: ContactMethod
+    newsletter: boolean
   }
   addresses: Address[]
 }
@@ -24,11 +35,33 @@ const required =
   (value) =>
     value !== undefined && value !== null && value !== '' ? true : message
 
-const email = (message: string): Validator<string, ProfileFormValues> => (value) =>
+const emailValidator = (message: string): Validator<string, ProfileFormValues> => (value) =>
   !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value)) ? true : message
 
 const adult = (message: string): Validator<number | null, ProfileFormValues> => (value) =>
   value === null || Number(value) >= 18 ? true : message
+
+const minCharacters =
+  (limit: number, message: string): Validator<string, ProfileFormValues> =>
+  (value) =>
+    !value || value.length >= limit ? true : message
+
+const contactOptions = [
+  {
+    label: 'Email',
+    value: 'email',
+    description: 'We will reach out via the email you provide above.',
+  },
+  {
+    label: 'Phone',
+    value: 'phone',
+    description: 'We will follow up with a quick call to your phone number.',
+  },
+] as const satisfies Array<{ label: string; value: ContactMethod; description: string }>
+
+const streetRule = { validate: required('Street is required') }
+const cityRule = { validate: required('City is required') }
+const countryRule = { validate: required('Country is required') }
 
 const form = useForm<ProfileFormValues>({
   mode: 'onBlur',
@@ -43,11 +76,22 @@ const form = useForm<ProfileFormValues>({
     },
     'profile.email': {
       defaultValue: '',
-      validate: [required('Email is required'), email('Email must be valid')],
+      validate: [required('Email is required'), emailValidator('Email must be valid')],
     },
     'profile.age': {
       defaultValue: null,
       validate: adult('You must be at least 18 years old'),
+    },
+    'profile.bio': {
+      defaultValue: '',
+      validate: minCharacters(10, 'Tell us a little more (min. 10 characters)'),
+    },
+    'preferences.contactMethod': {
+      defaultValue: 'email',
+      validate: required('Select how we should reach you'),
+    },
+    'preferences.newsletter': {
+      defaultValue: true,
     },
     addresses: {
       defaultValue: [
@@ -82,397 +126,258 @@ const resetForm = () => {
   form.reset()
 }
 
-const formErrors = computed(() => form.formState.value.errors)
 const isSubmitting = computed(() => form.formState.value.isSubmitting)
 const isDirty = computed(() => form.formState.value.isDirty)
 </script>
 
 <template>
-  <main class="page">
-    <section class="panel">
-      <header class="panel__header">
-        <h1>Profile form</h1>
-        <p>Composable-powered form utilities inspired by react-hook-form.</p>
-      </header>
-
-      <form class="form" @submit.prevent="submitForm">
-        <div class="grid two-col">
-          <div class="field">
-            <label for="first-name">First name</label>
-            <input id="first-name" type="text" placeholder="Ada" v-bind="form.register('profile.firstName')" />
-            <p v-if="formErrors['profile.firstName']" class="field__error">
-              {{ formErrors['profile.firstName'] }}
+  <div class="min-h-screen bg-slate-100 py-12">
+    <main class="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 lg:flex-row">
+      <section class="flex-1">
+        <div
+          class="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60 lg:p-10"
+        >
+          <header class="space-y-2">
+            <p class="text-xs uppercase tracking-[0.3em] text-indigo-500">Demo</p>
+            <h1 class="text-3xl font-semibold text-slate-900 lg:text-4xl">
+              Profile form
+            </h1>
+            <p class="max-w-2xl text-sm text-slate-500">
+              Composable-powered form utilities inspired by react-hook-form, ready to handle
+              complex schemas without external libraries.
             </p>
-          </div>
-
-          <div class="field">
-            <label for="last-name">Last name</label>
-            <input id="last-name" type="text" placeholder="Lovelace" v-bind="form.register('profile.lastName')" />
-            <p v-if="formErrors['profile.lastName']" class="field__error">
-              {{ formErrors['profile.lastName'] }}
-            </p>
-          </div>
-        </div>
-
-        <div class="grid two-col">
-          <div class="field">
-            <label for="email">Email</label>
-            <input id="email" type="email" placeholder="ada@example.com" v-bind="form.register('profile.email')" />
-            <p v-if="formErrors['profile.email']" class="field__error">
-              {{ formErrors['profile.email'] }}
-            </p>
-          </div>
-
-          <div class="field">
-            <label for="age">Age</label>
-            <input id="age" type="number" min="0" v-bind="form.register('profile.age')" />
-            <p v-if="formErrors['profile.age']" class="field__error">
-              {{ formErrors['profile.age'] }}
-            </p>
-          </div>
-        </div>
-
-        <section class="field-array">
-          <header class="field-array__header">
-            <h2>Addresses</h2>
-            <button
-              type="button"
-              class="btn btn--secondary"
-              @click="appendAddress({ street: '', city: '', country: '' })"
-            >
-              Add address
-            </button>
           </header>
 
-          <p class="field-array__hint">
-            Use the buttons to add, remove, or re-order addresses with the <code>useFieldArray</code> helper.
-          </p>
+          <form class="mt-10 space-y-12" @submit.prevent="submitForm">
+            <section class="space-y-6">
+              <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-slate-900">Basics</h2>
+                <span class="text-xs font-medium uppercase tracking-wide text-slate-400">
+                  Step 1 of 3
+                </span>
+              </div>
+              <div class="grid gap-6 md:grid-cols-2">
+                <FormInput
+                  :form="form"
+                  name="profile.firstName"
+                  label="First name"
+                  placeholder="Ada"
+                  required
+                />
+                <FormInput
+                  :form="form"
+                  name="profile.lastName"
+                  label="Last name"
+                  placeholder="Lovelace"
+                  required
+                />
+              </div>
 
-          <div
-            v-for="(address, index) in addressFields"
-            :key="address.id"
-            class="field-array__item"
-          >
-            <div class="field-array__item-header">
-              <h3>Address {{ index + 1 }}</h3>
-              <div class="field-array__actions">
+              <div class="grid gap-6 md:grid-cols-2">
+                <FormInput
+                  :form="form"
+                  name="profile.email"
+                  type="email"
+                  label="Email"
+                  placeholder="ada@example.com"
+                  required
+                />
+                <FormInput
+                  :form="form"
+                  name="profile.age"
+                  type="number"
+                  label="Age"
+                  placeholder="18"
+                  description="Optional — used to tailor future recommendations."
+                />
+              </div>
+
+              <FormTextarea
+                :form="form"
+                name="profile.bio"
+                label="Short bio"
+                placeholder="Tell us about your current role, interests, or goals."
+                description="Give the community a sense of who you are — minimum of 10 characters."
+                required
+              />
+            </section>
+
+            <section class="space-y-6">
+              <div class="flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-slate-900">Preferences</h2>
+                <span class="text-xs font-medium uppercase tracking-wide text-slate-400">
+                  Step 2 of 3
+                </span>
+              </div>
+
+              <FormRadioGroup
+                :form="form"
+                name="preferences.contactMethod"
+                label="How should we reach you?"
+                description="Choose the channel you prefer for follow-ups and updates."
+                :options="contactOptions"
+                inline
+              />
+
+              <FormCheckbox
+                :form="form"
+                name="preferences.newsletter"
+                label="Subscribe to product updates"
+                description="Get occasional emails about new features and beta programs."
+              />
+            </section>
+
+            <section class="space-y-6">
+              <div class="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <h2 class="text-lg font-semibold text-slate-900">Addresses</h2>
+                  <p class="text-sm text-slate-500">
+                    Use the controls below to add, remove, or reorder addresses you want to keep on
+                    file.
+                  </p>
+                </div>
                 <button
                   type="button"
-                  class="btn btn--icon"
-                  :disabled="index === 0"
-                  @click="moveAddress(index, index - 1)"
-                  title="Move up"
+                  class="inline-flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white"
+                  @click="appendAddress({ street: '', city: '', country: '' })"
                 >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  class="btn btn--icon"
-                  :disabled="index === addressFields.length - 1"
-                  @click="moveAddress(index, index + 1)"
-                  title="Move down"
-                >
-                  ↓
-                </button>
-                <button
-                  type="button"
-                  class="btn btn--danger"
-                  @click="removeAddress(index)"
-                  title="Remove address"
-                >
-                  Remove
+                  <span class="-mt-[1px] text-lg leading-none">＋</span>
+                  Add address
                 </button>
               </div>
-            </div>
 
-            <div class="grid three-col field-array__grid">
-              <div class="field">
-                <label :for="`street-${address.id}`">Street</label>
-                <input
-                  :id="`street-${address.id}`"
-                  type="text"
-                  placeholder="221B Baker Street"
-                  v-bind="form.register(`addresses.${index}.street`, {
-                    validate: required('Street is required'),
-                  })"
-                />
-                <p v-if="formErrors[`addresses.${index}.street`]" class="field__error">
-                  {{ formErrors[`addresses.${index}.street`] }}
-                </p>
+              <div v-if="addressFields.length" class="space-y-4">
+                <div
+                  v-for="(address, index) in addressFields"
+                  :key="address.id"
+                  class="rounded-2xl border border-slate-200 bg-slate-50/80 p-6 shadow-sm"
+                >
+                  <div class="flex flex-wrap items-center justify-between gap-3">
+                    <h3 class="text-base font-semibold text-slate-900">
+                      Address {{ index + 1 }}
+                    </h3>
+                    <div class="flex items-center gap-2">
+                      <button
+                        type="button"
+                        class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-indigo-400 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+                        :disabled="index === 0"
+                        @click="moveAddress(index, index - 1)"
+                        aria-label="Move address up"
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        class="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:border-indigo-400 hover:text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"
+                        :disabled="index === addressFields.length - 1"
+                        @click="moveAddress(index, index + 1)"
+                        aria-label="Move address down"
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        class="inline-flex items-center justify-center rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-sm font-medium text-rose-600 transition hover:bg-rose-100 focus:outline-none focus:ring-2 focus:ring-rose-500/40 focus:ring-offset-2"
+                        @click="removeAddress(index)"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="mt-6 grid gap-6 md:grid-cols-3">
+                    <FormInput
+                      :form="form"
+                      :name="`addresses.${index}.street`"
+                      label="Street"
+                      placeholder="221B Baker Street"
+                      :register-options="streetRule"
+                      required
+                    />
+                    <FormInput
+                      :form="form"
+                      :name="`addresses.${index}.city`"
+                      label="City"
+                      placeholder="London"
+                      :register-options="cityRule"
+                      required
+                    />
+                    <FormInput
+                      :form="form"
+                      :name="`addresses.${index}.country`"
+                      label="Country"
+                      placeholder="United Kingdom"
+                      :register-options="countryRule"
+                      required
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div class="field">
-                <label :for="`city-${address.id}`">City</label>
-                <input
-                  :id="`city-${address.id}`"
-                  type="text"
-                  placeholder="London"
-                  v-bind="form.register(`addresses.${index}.city`, {
-                    validate: required('City is required'),
-                  })"
-                />
-                <p v-if="formErrors[`addresses.${index}.city`]" class="field__error">
-                  {{ formErrors[`addresses.${index}.city`] }}
-                </p>
-              </div>
+              <p v-else class="rounded-xl border border-dashed border-slate-200 bg-white p-6 text-sm text-slate-500">
+                No addresses yet. Add one to keep track of where we can find you.
+              </p>
+            </section>
 
-              <div class="field">
-                <label :for="`country-${address.id}`">Country</label>
-                <input
-                  :id="`country-${address.id}`"
-                  type="text"
-                  placeholder="United Kingdom"
-                  v-bind="form.register(`addresses.${index}.country`, {
-                    validate: required('Country is required'),
-                  })"
-                />
-                <p v-if="formErrors[`addresses.${index}.country`]" class="field__error">
-                  {{ formErrors[`addresses.${index}.country`] }}
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
+            <footer class="flex flex-wrap items-center gap-3">
+              <button
+                type="submit"
+                class="inline-flex items-center justify-center rounded-full bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:bg-indigo-300"
+                :disabled="isSubmitting"
+              >
+                <span v-if="isSubmitting">Submitting…</span>
+                <span v-else>Submit form</span>
+              </button>
+              <button
+                type="button"
+                class="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-6 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:ring-offset-2 focus:ring-offset-white disabled:cursor-not-allowed disabled:opacity-60"
+                :disabled="isSubmitting || !isDirty"
+                @click="resetForm"
+              >
+                Reset
+              </button>
+              <span
+                v-if="form.formState.value.submitCount"
+                class="text-xs font-medium uppercase tracking-wide text-slate-400"
+              >
+                Submitted {{ form.formState.value.submitCount }} times
+              </span>
+            </footer>
+          </form>
+        </div>
+      </section>
 
-        <footer class="form__footer">
-          <button type="submit" class="btn" :disabled="isSubmitting">
-            {{ isSubmitting ? 'Submitting…' : 'Submit' }}
-          </button>
-          <button type="button" class="btn btn--secondary" :disabled="isSubmitting || !isDirty" @click="resetForm">
-            Reset
-          </button>
-        </footer>
-      </form>
-    </section>
+      <aside class="lg:w-96">
+        <div class="space-y-6">
+          <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/50">
+            <header class="space-y-2">
+              <h2 class="text-lg font-semibold text-slate-900">Live values</h2>
+              <p class="text-sm text-slate-500">
+                Form state updates reactively as you interact.
+              </p>
+            </header>
+            <pre
+              class="mt-4 max-h-80 overflow-y-auto rounded-2xl bg-slate-900/95 px-4 py-3 text-xs leading-relaxed text-slate-100 shadow-inner"
+            >{{ JSON.stringify(form.values, null, 2) }}</pre>
+          </section>
 
-    <aside class="panel">
-      <header class="panel__header">
-        <h2>Live values</h2>
-        <p>Form state updates reactively as you interact with the form.</p>
-      </header>
-      <pre class="pre">{{ JSON.stringify(form.values, null, 2) }}</pre>
-
-      <header class="panel__header">
-        <h2>Latest submission</h2>
-      </header>
-      <pre v-if="submitted" class="pre">{{ JSON.stringify(submitted, null, 2) }}</pre>
-      <p v-else class="empty-state">No submission yet.</p>
-    </aside>
-  </main>
+          <section class="rounded-3xl border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/50">
+            <header class="space-y-2">
+              <h2 class="text-lg font-semibold text-slate-900">Latest submission</h2>
+              <p class="text-sm text-slate-500">
+                Results are cleared when you reset the form.
+              </p>
+            </header>
+            <pre
+              v-if="submitted"
+              class="mt-4 max-h-80 overflow-y-auto rounded-2xl bg-emerald-950/95 px-4 py-3 text-xs leading-relaxed text-emerald-100 shadow-inner"
+            >{{ JSON.stringify(submitted, null, 2) }}</pre>
+            <p v-else class="mt-4 text-sm text-slate-500">
+              No submission yet. Fill out the form and hit submit to preview the payload.
+            </p>
+          </section>
+        </div>
+      </aside>
+    </main>
+  </div>
 </template>
-
-<style scoped>
-.page {
-  display: grid;
-  gap: 2.5rem;
-  padding: 2.5rem 1.5rem 4rem;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.panel {
-  background: #ffffff;
-  border-radius: 14px;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
-  padding: 2rem 2.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.panel__header h1,
-.panel__header h2 {
-  margin: 0 0 0.25rem;
-  font-size: 1.8rem;
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.panel__header p {
-  margin: 0;
-  color: #475569;
-}
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 1.75rem;
-}
-
-.grid {
-  display: grid;
-  gap: 1.5rem;
-}
-
-.grid.two-col {
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-}
-
-.grid.three-col {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-}
-
-.field label {
-  font-weight: 500;
-  color: #0f172a;
-}
-
-.field input {
-  border: 1px solid #cbd5f5;
-  border-radius: 8px;
-  height: 2.6rem;
-  padding: 0 0.75rem;
-  font-size: 0.95rem;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.field input:focus {
-  border-color: #6366f1;
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
-}
-
-.field__error {
-  color: #dc2626;
-  font-size: 0.85rem;
-  margin: 0;
-}
-
-.field-array {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.field-array__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.field-array__header h2 {
-  margin: 0;
-  font-size: 1.4rem;
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.field-array__hint {
-  margin: -0.5rem 0 0;
-  color: #64748b;
-  font-size: 0.9rem;
-}
-
-.field-array__item {
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 1.25rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.field-array__item-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-}
-
-.field-array__item-header h3 {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.field-array__actions {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.field-array__grid {
-  margin-top: 0.5rem;
-}
-
-.form__footer {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-
-.btn {
-  background: #6366f1;
-  color: #ffffff;
-  border: none;
-  border-radius: 999px;
-  padding: 0.65rem 1.5rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.btn:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 20px rgba(99, 102, 241, 0.2);
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-.btn--secondary {
-  background: #e2e8f0;
-  color: #1e293b;
-}
-
-.btn--danger {
-  background: #dc2626;
-  color: #ffffff;
-}
-
-.btn--icon {
-  background: #e2e8f0;
-  color: #1e293b;
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 50%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  padding: 0;
-}
-
-.panel .pre {
-  margin: 0;
-  background: #0f172a;
-  color: #e2e8f0;
-  border-radius: 10px;
-  padding: 1.25rem;
-  font-size: 0.9rem;
-  overflow-x: auto;
-  max-height: 320px;
-}
-
-.empty-state {
-  margin: 0;
-  color: #94a3b8;
-}
-
-@media (min-width: 960px) {
-  .page {
-    grid-template-columns: 3fr 2fr;
-  }
-}
-</style>
