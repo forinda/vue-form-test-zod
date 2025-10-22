@@ -1,19 +1,18 @@
 <template>
-  <div class="min-h-screen bg-slate-100 py-12">
-    <main class="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 lg:flex-row">
-      <section class="flex-1">
-        <div
-          class="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60 lg:p-10"
-        >
-          <header class="space-y-2">
-            <p class="text-xs uppercase tracking-[0.3em] text-indigo-500">Survey</p>
-            <h1 class="text-3xl font-semibold text-slate-900 lg:text-4xl">
-              Developer Survey 2025
-            </h1>
-            <p class="max-w-2xl text-sm text-slate-500">
-              Help us understand the developer community better. This comprehensive survey covers your background, skills, and future goals.
-            </p>
-          </header>
+  <div class="flex w-full flex-col gap-10 lg:flex-row">
+    <section class="flex-1">
+      <div
+        class="rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60 lg:p-10"
+      >
+        <header class="space-y-2">
+          <p class="text-xs uppercase tracking-[0.3em] text-indigo-500">Survey</p>
+          <h1 class="text-3xl font-semibold text-slate-900 lg:text-4xl">
+            Developer Survey 2025
+          </h1>
+          <p class="max-w-2xl text-sm text-slate-500">
+            Help us understand the developer community better. This comprehensive survey covers your background, skills, and future goals.
+          </p>
+        </header>
           <!-- Progress Bar -->
           <SurveyProgress :current-step="currentStep" :total-steps="totalSteps" />
 {{ form.errors }}
@@ -111,7 +110,6 @@
           </section>
         </div>
       </aside>
-    </main>
   </div>
 </template>
 

@@ -46,12 +46,13 @@
           type="text"
           :id="inputId"
           :disabled="disabled"
-          :placeholder="chips.length === 0 ? (placeholder || 'Type and press Enter to add...') : ''"
+          :placeholder="chips.length === 0 ? (placeholder || 'Type items separated by commas or press Enter...') : ''"
           :aria-invalid="errorMessage ? 'true' : undefined"
           :aria-describedby="describedById"
           class="flex-1 min-w-32 border-0 bg-transparent p-0 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-0"
           :class="{ 'cursor-not-allowed': disabled }"
           @keydown="handleKeyDown"
+          @input="handleInput"
           @blur="handleBlur"
         />
       </div>
@@ -245,13 +246,27 @@ function handleKeyDown(event: KeyboardEvent) {
           addChipFromSuggestion(suggestion)
         }
       } else if (inputValue.value.trim()) {
-        addChip(inputValue.value)
+        // Handle comma-separated values on Enter
+        const values = inputValue.value.split(',').map(v => v.trim()).filter(v => v)
+        if (values.length > 1) {
+          values.forEach(value => addChip(value))
+        } else {
+          addChip(inputValue.value)
+        }
       }
       break
 
     case 'Backspace':
       if (!inputValue.value && chips.value.length > 0) {
         removeChip(chips.value.length - 1)
+      }
+      break
+
+    case ',':
+      // Always handle comma as separator
+      event.preventDefault()
+      if (inputValue.value.trim()) {
+        addChip(inputValue.value)
       }
       break
 
@@ -288,8 +303,8 @@ function handleKeyDown(event: KeyboardEvent) {
       break
 
     default:
-      // Handle custom separators
-      if (props.separator && typeof props.separator === 'string' && event.key === props.separator) {
+      // Handle custom separators (other than comma which is handled above)
+      if (props.separator && typeof props.separator === 'string' && props.separator !== ',' && event.key === props.separator) {
         event.preventDefault()
         if (inputValue.value.trim()) {
           addChip(inputValue.value)
@@ -305,6 +320,28 @@ function handleBlur() {
     showSuggestions.value = false
     highlightedIndex.value = -1
   }, 150)
+}
+
+function handleInput(event: Event) {
+  const target = event.target as HTMLInputElement
+  const value = target.value
+  
+  // Check if the value contains comma and auto-split
+  if (value.includes(',') && !props.disabled) {
+    const parts = value.split(',')
+    const lastPart = parts.pop() || ''
+    
+    // Add all complete parts as chips
+    parts.forEach(part => {
+      const trimmed = part.trim()
+      if (trimmed) {
+        addChip(trimmed)
+      }
+    })
+    
+    // Keep the last part in the input
+    inputValue.value = lastPart.trim()
+  }
 }
 
 function handleClickOutside(event: Event) {

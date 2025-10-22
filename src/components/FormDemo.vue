@@ -1,7 +1,6 @@
 <template>
-  <div class="max-w-4xl mx-auto p-8 space-y-8">
+  <div class="space-y-8">
     <div class="text-center">
-      <h1 class="text-3xl font-bold text-gray-900 mb-2">Form Components Demo</h1>
       <p class="text-gray-600">Interactive showcase of all available form components</p>
     </div>
 
@@ -48,8 +47,8 @@
           :form="form"
           name="skills"
           label="Skills"
-          description="Type skills and press Enter to add them"
-          placeholder="Type a skill and press Enter..."
+          description="Type skills and press Enter, or separate with commas"
+          placeholder="JavaScript, Vue.js, TypeScript..."
           :suggestions="skillSuggestions"
           :max-chips="10"
         />
@@ -58,7 +57,7 @@
           :form="form"
           name="tags"
           label="Tags"
-          description="Comma-separated tags"
+          description="Try typing: web,frontend,react,vue (automatic comma detection)"
           placeholder="Add tags..."
           separator=","
           :allow-duplicates="false"
@@ -73,7 +72,7 @@
           <FormSelect
             :form="form"
             name="country"
-            label="Country"
+            label="Country (Searchable)"
             :options="countryOptions"
             placeholder="Select your country"
             searchable
@@ -83,11 +82,31 @@
           <FormSelect
             :form="form"
             name="languages"
-            label="Programming Languages"
+            label="Programming Languages (Searchable, Multiple)"
             :options="languageOptions"
             placeholder="Select languages"
             multiple
             searchable
+          />
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <FormSelect
+            :form="form"
+            name="theme"
+            label="Theme (No Search)"
+            :options="themeOptions"
+            placeholder="Select a theme"
+            :searchable="false"
+          />
+
+          <FormSelect
+            :form="form"
+            name="size"
+            label="Size (No Search)"
+            :options="sizeOptions"
+            placeholder="Select size"
+            :searchable="false"
           />
         </div>
       </section>
@@ -221,6 +240,8 @@ const demoSchema = z.object({
   tags: z.array(z.string()).optional(),
   country: z.string().min(1, 'Please select a country'),
   languages: z.array(z.string()).min(1, 'Please select at least one language'),
+  theme: z.string().optional(),
+  size: z.string().optional(),
   experience: z.string().min(1, 'Please select your experience level'),
   newsletter: z.boolean().optional(),
   terms: z.boolean().refine(val => val === true, 'You must agree to the terms'),
@@ -243,6 +264,8 @@ const form = useForm<DemoFormValues>({
     tags: [],
     country: '',
     languages: [],
+    theme: '',
+    size: '',
     experience: '',
     newsletter: false,
     terms: false,
@@ -290,6 +313,19 @@ const experienceOptions = [
   { label: 'Intermediate (2-4 years)', value: 'intermediate' },
   { label: 'Advanced (5-7 years)', value: 'advanced' },
   { label: 'Expert (8+ years)', value: 'expert' },
+]
+
+const themeOptions = [
+  { label: 'Light', value: 'light' },
+  { label: 'Dark', value: 'dark' },
+  { label: 'Auto', value: 'auto' },
+]
+
+const sizeOptions = [
+  { label: 'Small', value: 'sm' },
+  { label: 'Medium', value: 'md' },
+  { label: 'Large', value: 'lg' },
+  { label: 'Extra Large', value: 'xl' },
 ]
 
 // Computed

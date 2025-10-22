@@ -20,9 +20,9 @@
         :aria-describedby="describedById"
         :aria-expanded="isOpen"
         :aria-haspopup="true"
-        class="relative w-full cursor-pointer rounded-lg border border-slate-300 bg-white py-3 pl-4 pr-12 text-left text-sm shadow-sm ring-1 ring-slate-200 transition-all duration-200 hover:border-slate-400 hover:ring-slate-300 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+        class="relative w-full cursor-pointer rounded-lg border border-slate-300 bg-white py-3 pl-4 pr-12 text-left text-sm shadow-sm transition-all duration-200 hover:border-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-60"
         :class="[
-          errorMessage ? 'border-rose-400 ring-rose-200 hover:border-rose-500 hover:ring-rose-300 focus:border-rose-500 focus:ring-rose-500/20' : '',
+          errorMessage ? 'border-rose-400 hover:border-rose-500 focus:border-rose-500 focus:ring-rose-500/10' : '',
         ]"
         @click="toggleDropdown"
         @keydown="handleTriggerKeydown"
@@ -62,7 +62,7 @@
       <div
         v-if="isOpen"
         ref="dropdownRef"
-        class="absolute z-10 mt-2 max-h-60 w-full overflow-auto rounded-lg bg-white py-2 text-base shadow-xl ring-1 ring-black ring-opacity-5 backdrop-blur-sm focus:outline-none sm:text-sm"
+        class="absolute z-10 mt-2 max-h-60 w-full overflow-auto rounded-lg bg-white py-2 text-base shadow-xl ring-1 ring-black/5 focus:outline-none sm:text-sm"
       >
         <!-- Search Input -->
         <div v-if="searchable" class="p-3 border-b border-slate-200">
@@ -70,7 +70,7 @@
             ref="searchInputRef"
             v-model="searchQuery"
             type="text"
-            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500/20"
             placeholder="Search options..."
             @keydown="handleSearchKeydown"
           />
