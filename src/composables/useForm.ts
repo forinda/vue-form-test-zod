@@ -602,10 +602,14 @@ export function useForm<
   async function validate(
     name?: FieldPath<TValues> | FieldPath<TValues>[]
   ): Promise<boolean> {
+    // In submit mode, if no paths are provided, validate all fields
+    // If paths are provided, validate only those specific paths
     const fieldsToValidate: string[] = name
       ? Array.isArray(name)
         ? [...new Set(name)]
         : [name]
+      : mode === "onSubmit"
+      ? Array.from(new Set(Object.keys(fieldStates)))
       : Array.from(new Set(Object.keys(fieldStates)));
 
     let schemaIssues: ZodIssue[] | undefined;
@@ -615,12 +619,26 @@ export function useForm<
         .map((issue) => issuePathToName(issue.path as PathSegment[]))
         .filter((pathName): pathName is string => Boolean(pathName));
 
+      // When validating specific fields, only include schema issues for those specific fields
       issuePaths.forEach((pathName) => {
         ensureFieldStateInternal(pathName);
-        if (!fieldsToValidate.includes(pathName)) {
-          fieldsToValidate.push(pathName);
+        // Only add schema issue paths if:
+        // 1. We're validating all fields (no name provided), OR
+        // 2. The schema issue path is in our list of fields to validate
+        if (!name || fieldsToValidate.includes(pathName)) {
+          if (!fieldsToValidate.includes(pathName)) {
+            fieldsToValidate.push(pathName);
+          }
         }
       });
+      
+      // Filter schema issues to only include those for fields we're validating
+      if (name) {
+        schemaIssues = schemaIssues.filter((issue) => {
+          const pathName = issuePathToName(issue.path as PathSegment[]);
+          return pathName && fieldsToValidate.includes(pathName);
+        });
+      }
     }
 
     const results = await Promise.all(
