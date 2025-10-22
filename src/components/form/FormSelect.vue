@@ -20,9 +20,9 @@
         :aria-describedby="describedById"
         :aria-expanded="isOpen"
         :aria-haspopup="true"
-        class="relative w-full cursor-pointer rounded-md border border-slate-300 bg-white py-2 pl-3 pr-10 text-left text-sm shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-60"
+        class="relative w-full cursor-pointer rounded-lg border border-slate-300 bg-white py-3 pl-4 pr-12 text-left text-sm shadow-sm ring-1 ring-slate-200 transition-all duration-200 hover:border-slate-400 hover:ring-slate-300 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 disabled:cursor-not-allowed disabled:opacity-60"
         :class="[
-          errorMessage ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/40' : '',
+          errorMessage ? 'border-rose-400 ring-rose-200 hover:border-rose-500 hover:ring-rose-300 focus:border-rose-500 focus:ring-rose-500/20' : '',
         ]"
         @click="toggleDropdown"
         @keydown="handleTriggerKeydown"
@@ -30,21 +30,21 @@
         <!-- Display Value -->
         <span
           v-if="displayValue"
-          class="block truncate text-slate-900"
+          class="block truncate text-slate-900 font-medium"
         >
           {{ displayValue }}
         </span>
         <span
           v-else
-          class="block truncate text-slate-400"
+          class="block truncate text-slate-500 italic"
         >
           {{ placeholder || 'Select an option...' }}
         </span>
 
         <!-- Dropdown Arrow -->
-        <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2">
+        <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
           <svg
-            class="h-5 w-5 text-slate-400 transition-transform"
+            class="h-5 w-5 text-slate-400 transition-transform duration-200"
             :class="{ 'rotate-180': isOpen }"
             viewBox="0 0 20 20"
             fill="currentColor"
@@ -62,15 +62,15 @@
       <div
         v-if="isOpen"
         ref="dropdownRef"
-        class="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm"
+        class="absolute z-10 mt-2 max-h-60 w-full overflow-auto rounded-lg bg-white py-2 text-base shadow-xl ring-1 ring-black ring-opacity-5 backdrop-blur-sm focus:outline-none sm:text-sm"
       >
         <!-- Search Input -->
-        <div v-if="searchable" class="p-2">
+        <div v-if="searchable" class="p-3 border-b border-slate-200">
           <input
             ref="searchInputRef"
             v-model="searchQuery"
             type="text"
-            class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm placeholder-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+            class="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm placeholder-slate-500 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
             placeholder="Search options..."
             @keydown="handleSearchKeydown"
           />
@@ -88,10 +88,10 @@
             :ref="(el) => setOptionRef(el, index)"
             role="option"
             :aria-selected="isOptionSelected(option)"
-            class="relative cursor-pointer select-none py-2 pl-3 pr-9 transition hover:bg-slate-50"
+            class="relative cursor-pointer select-none py-3 pl-4 pr-12 transition-colors duration-150 hover:bg-slate-50"
             :class="[
               isOptionSelected(option) ? 'bg-indigo-50 text-indigo-900' : 'text-slate-900',
-              highlightedIndex === index ? 'bg-slate-100' : '',
+              highlightedIndex === index ? 'bg-indigo-100' : '',
             ]"
             @click="selectOption(option)"
             @mouseenter="highlightedIndex = index"
@@ -127,7 +127,7 @@
         <!-- No Options Message -->
         <div
           v-else
-          class="relative cursor-default select-none py-2 px-3 text-slate-500"
+          class="relative cursor-default select-none py-3 px-4 text-slate-500 text-center italic"
         >
           {{ searchQuery ? 'No options found' : 'No options available' }}
         </div>
@@ -137,17 +137,17 @@
     <!-- Selected Items (Multi-select) -->
     <div
       v-if="multiple && selectedOptions.length > 0"
-      class="flex flex-wrap gap-1"
+      class="flex flex-wrap gap-2"
     >
       <span
         v-for="option in selectedOptions"
         :key="getOptionKey(option)"
-        class="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-1 text-xs font-medium text-indigo-700"
+        class="inline-flex items-center gap-1.5 rounded-full bg-indigo-100 px-3 py-1.5 text-sm font-medium text-indigo-700 ring-1 ring-indigo-200"
       >
         {{ getOptionLabel(option) }}
         <button
           type="button"
-          class="inline-flex h-4 w-4 items-center justify-center rounded-full text-indigo-400 hover:bg-indigo-200 hover:text-indigo-500"
+          class="inline-flex h-4 w-4 items-center justify-center rounded-full text-indigo-500 hover:bg-indigo-200 hover:text-indigo-700 focus:outline-none focus:ring-1 focus:ring-indigo-500"
           @click="removeOption(option)"
         >
           <svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">

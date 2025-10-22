@@ -10,7 +10,7 @@ export function useSurveyForm() {
 
   // Form setup
   const form = useForm<SurveyFormValues>({
-    mode: 'onSubmit',
+    mode: 'onBlur',
     schema: surveySchema,
     defaultValues: defaultSurveyValues,
   })

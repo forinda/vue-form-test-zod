@@ -30,7 +30,7 @@ const props = defineProps<FormCheckboxProps>()
 
 const effectiveRegisterOptions = computed<RegisterFieldOptions<any, any>>(() => ({
   valueProp: 'checked',
-  ...(props.registerOptions ?? {}),
+  ...props.registerOptions,
 }))
 
 const binding = ref<RegisteredFieldBinding>(
