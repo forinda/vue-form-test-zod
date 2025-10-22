@@ -6,24 +6,24 @@ import type {
   UseFormReturn,
 } from '../../composables/useForm'
 
-const props = withDefaults(
-  defineProps<{
-    form: UseFormReturn<any>
-    name: string
-    label?: string
-    description?: string
-    error?: string | null
-    id?: string
-    disabled?: boolean
-    registerOptions?: RegisterFieldOptions<any, any>
-  }>(),
-  {
-    registerOptions: () => ({ valueProp: 'checked' }),
-  },
-)
+const props = defineProps<{
+  form: UseFormReturn<any>
+  name: string
+  label?: string
+  description?: string
+  error?: string | null
+  id?: string
+  disabled?: boolean
+  registerOptions?: RegisterFieldOptions<any, any>
+}>()
+
+const effectiveRegisterOptions = computed<RegisterFieldOptions<any, any>>(() => ({
+  valueProp: 'checked',
+  ...(props.registerOptions ?? {}),
+}))
 
 const binding = ref<RegisteredFieldBinding>(
-  props.form.register(props.name, props.registerOptions),
+  props.form.register(props.name, effectiveRegisterOptions.value),
 )
 
 watch(
@@ -32,12 +32,12 @@ watch(
     if (newName === oldName) {
       return
     }
-    binding.value = props.form.register(newName, props.registerOptions)
+    binding.value = props.form.register(newName, effectiveRegisterOptions.value)
   },
 )
 
 watch(
-  () => props.registerOptions,
+  effectiveRegisterOptions,
   (options) => {
     binding.value = props.form.register(props.name, options)
   },

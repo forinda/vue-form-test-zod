@@ -9,6 +9,7 @@ import {
   type WatchStopHandle,
   type WritableComputedRef,
 } from 'vue'
+import type { ZodIssue, ZodType } from 'zod'
 
 type MaybePromise<T> = T | Promise<T>
 type PathSegment = string | number
@@ -32,35 +33,24 @@ export type Validator<TFieldValue, TValues extends Record<string, any>> = (
   context: ValidationContext<TValues>,
 ) => MaybePromise<true | string | null | undefined | false>
 
-export interface FieldDefinition<
-  TFieldValue = any,
-  TValues extends Record<string, any> = Record<string, any>,
-> {
-  defaultValue?: TFieldValue
-  validate?: Validator<TFieldValue, TValues> | Array<Validator<TFieldValue, TValues>>
-  validateOn?: ValidationTrigger
-}
-
-export type FormSchema<TValues extends Record<string, any>> = Record<
-  string,
-  FieldDefinition<any, TValues>
->
-
 export interface UseFormOptions<TValues extends Record<string, any>> {
   defaultValues?: Partial<TValues>
-  schema?: FormSchema<TValues>
+  schema?: ZodType<TValues, any, any>
   mode?: ValidationMode
 }
 
 export interface RegisterFieldOptions<
   TFieldValue = any,
   TValues extends Record<string, any> = Record<string, any>,
-> extends Omit<FieldDefinition<TFieldValue, TValues>, 'defaultValue'> {
+> {
   defaultValue?: TFieldValue
+  validate?: Validator<TFieldValue, TValues> | Array<Validator<TFieldValue, TValues>>
+  validateOn?: ValidationTrigger
   parse?: (input: any, context: { name: string; values: TValues }) => TFieldValue
   valueProp?: 'value' | 'checked'
   trueValue?: any
   falseValue?: any
+  defaultError?: string
 }
 
 export interface SetValueOptions {
@@ -175,12 +165,9 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
 ): UseFormReturn<TValues> {
   const mode: ValidationMode = options.mode ?? 'onSubmit'
   const defaultTrigger: ValidationTrigger = modeToTriggerMap[mode]
+  const schema = options.schema
 
-  const schema = options.schema ?? {}
-  const preparedInitialValues = prepareInitialValues(
-    (options.defaultValues ?? {}) as TValues,
-    schema,
-  )
+  const preparedInitialValues = prepareInitialValues<TValues>(options.defaultValues, schema)
 
   const values = reactive(deepClone(preparedInitialValues)) as TValues
   const defaultValues = ref(deepClone(preparedInitialValues)) as Ref<TValues>
@@ -198,18 +185,6 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
     'values:change': new Set(),
     reset: new Set(),
   }
-
-  Object.entries(schema).forEach(([name, definition]) => {
-    const state = ensureFieldState(name)
-    const config = ensureFieldConfig(name)
-    const validators = normalizeValidators(definition.validate)
-    if (validators.length) {
-      config.validators = validators
-      state.validators = validators
-    }
-    config.validateOn = definition.validateOn ?? config.validateOn
-    state.validateOn = config.validateOn
-  })
 
   const formState = computed<FormState>(() => {
     const dirtyFields: Record<string, boolean> = {}
@@ -282,10 +257,9 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
     options: RegisterFieldOptions<any, TValues> = {},
   ): RegisteredFieldBinding {
     const segments = parsePath(name)
-    const schemaDefinition = schema[name]
 
     const defaultValue =
-      options.defaultValue ?? schemaDefinition?.defaultValue ?? getDeepValue(defaultValues.value, segments)
+      options.defaultValue ?? getDeepValue(defaultValues.value, segments)
     if (getDeepValue(values, segments) === undefined && defaultValue !== undefined) {
       setDeepValue(values, segments, deepClone(defaultValue))
     }
@@ -293,17 +267,13 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
     const config = ensureFieldConfig(name)
     const state = ensureFieldState(name)
 
-    const validators = [
-      ...normalizeValidators(schemaDefinition?.validate),
-      ...normalizeValidators(options.validate),
-    ]
-
+    const validators = normalizeValidators(options.validate)
     if (validators.length) {
       config.validators = validators
       state.validators = validators
     }
 
-    config.validateOn = options.validateOn ?? schemaDefinition?.validateOn ?? config.validateOn
+    config.validateOn = options.validateOn ?? config.validateOn
     state.validateOn = config.validateOn
     config.parse = options.parse as FieldConfig['parse']
     config.valueProp = options.valueProp ?? config.valueProp
@@ -312,6 +282,9 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
     }
     if (options.falseValue !== undefined) {
       config.falseValue = options.falseValue
+    }
+    if (options.defaultError) {
+      config.defaultError = options.defaultError
     }
 
     let binding = fieldRegistry.get(name)
@@ -423,16 +396,10 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
     errors[name] = error
   }
 
-  async function validateField(name: string): Promise<boolean> {
+  async function validateField(name: string, schemaIssues?: ZodIssue[]): Promise<boolean> {
     const state = ensureFieldState(name)
     const config = ensureFieldConfig(name)
     const validators = state.validators
-
-    if (!validators.length) {
-      state.error = null
-      errors[name] = null
-      return true
-    }
 
     state.isValidating = true
     const counter = (fieldValidationCounters.get(name) ?? 0) + 1
@@ -458,6 +425,19 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
         }
       }
 
+      if (schema) {
+        const issues = schemaIssues ?? collectSchemaIssues()
+        const schemaMessage = pickSchemaError(issues, parsePath(name))
+        if (fieldValidationCounters.get(name) !== counter) {
+          return false
+        }
+        if (schemaMessage) {
+          state.error = schemaMessage
+          errors[name] = schemaMessage
+          return false
+        }
+      }
+
       state.error = null
       errors[name] = null
       return true
@@ -471,19 +451,38 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
   async function validate(name?: string | string[]): Promise<boolean> {
     const fieldsToValidate = name
       ? Array.isArray(name)
-        ? name
+        ? [...new Set(name)]
         : [name]
-      : Array.from(new Set([...Object.keys(fieldStates), ...Object.keys(schema)]))
+      : Array.from(new Set([...Object.keys(fieldStates)]))
 
-    const results = await Promise.all(fieldsToValidate.map((fieldName) => validateField(fieldName)))
+    let schemaIssues: ZodIssue[] | undefined
+    if (schema) {
+      schemaIssues = collectSchemaIssues()
+      const issuePaths = schemaIssues
+        .map((issue) => issuePathToName(issue.path as PathSegment[]))
+        .filter((pathName): pathName is string => Boolean(pathName))
+
+      issuePaths.forEach((pathName) => {
+        ensureFieldState(pathName)
+        if (!fieldsToValidate.includes(pathName)) {
+          fieldsToValidate.push(pathName)
+        }
+      })
+    }
+
+    const results = await Promise.all(
+      fieldsToValidate.map((fieldName) => validateField(fieldName, schemaIssues)),
+    )
+
+    if (schema && schemaIssues) {
+      applySchemaIssues(schemaIssues)
+    }
+
     return results.every(Boolean)
   }
 
   function reset(valuesToSet?: Partial<TValues>) {
-    const nextValues = prepareInitialValues(
-      (valuesToSet ?? defaultValues.value) as TValues,
-      schema,
-    )
+    const nextValues = prepareInitialValues<TValues>(valuesToSet, schema)
     replaceReactiveValues(values, nextValues)
     defaultValues.value = deepClone(nextValues)
 
@@ -556,9 +555,9 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
         if (isFormValid) {
           await onValid(deepClone(toRaw(values)), { event })
         } else if (onInvalid) {
-          const errorBag = Object.entries(fieldStates).reduce<Record<string, string>>((acc, [name, state]) => {
+          const errorBag = Object.entries(fieldStates).reduce<Record<string, string>>((acc, [fieldName, state]) => {
             if (state.error) {
-              acc[name] = state.error
+              acc[fieldName] = state.error
             }
             return acc
           }, {})
@@ -635,6 +634,40 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
     formState,
     control,
   }
+
+  function collectSchemaIssues(): ZodIssue[] {
+    if (!schema) {
+      return []
+    }
+    const result = schema.safeParse(deepClone(toRaw(values)))
+    if (result.success) {
+      return []
+    }
+    return result.error.issues
+  }
+
+  function applySchemaIssues(issues: ZodIssue[]) {
+    const seen = new Set<string>()
+
+    issues.forEach((issue) => {
+      const name = issuePathToName(issue.path as PathSegment[])
+      if (!name) {
+        return
+      }
+      seen.add(name)
+      const state = ensureFieldState(name)
+      state.error = issue.message
+      errors[name] = issue.message
+    })
+
+    Object.entries(fieldStates).forEach(([name, state]) => {
+      if (!seen.has(name) && state.validators.length === 0) {
+        if (errors[name] && !state.error) {
+          errors[name] = null
+        }
+      }
+    })
+  }
 }
 
 function normalizeValidators(
@@ -657,6 +690,15 @@ function parsePath(path: string): PathSegment[] {
     }
     return segment
   })
+}
+
+function pathSegmentsToString(segments: PathSegment[]): string {
+  if (!segments.length) {
+    return ''
+  }
+  return segments
+    .map((segment) => (typeof segment === 'number' ? String(segment) : segment))
+    .join('.')
 }
 
 function getDeepValue(target: any, path: string | PathSegment[]): any {
@@ -786,16 +828,28 @@ function replaceReactiveValues(target: any, source: any) {
 }
 
 function prepareInitialValues<TValues extends Record<string, any>>(
-  baseValues: TValues,
-  schema: FormSchema<TValues>,
+  baseValues: Partial<TValues> | undefined,
+  schema?: ZodType<TValues, any, any>,
 ): TValues {
-  const result = deepClone(baseValues)
-  Object.entries(schema).forEach(([name, definition]) => {
-    if (definition?.defaultValue !== undefined && getDeepValue(result, name) === undefined) {
-      setDeepValue(result, name, deepClone(definition.defaultValue))
+  const fallback = deepClone((baseValues ?? {}) as TValues)
+
+  if (!schema) {
+    return fallback
+  }
+
+  if (baseValues) {
+    const parsed = schema.safeParse(baseValues)
+    if (parsed.success) {
+      return deepClone(parsed.data)
     }
-  })
-  return result
+  }
+
+  const emptyAttempt = schema.safeParse({})
+  if (emptyAttempt.success) {
+    return deepClone(emptyAttempt.data)
+  }
+
+  return fallback
 }
 
 function normalizeValidationResult(result: any, fallbackMessage: string): string | null {
@@ -848,4 +902,31 @@ function resolveInputValue(
   }
 
   return eventOrValue ?? currentValue
+}
+
+function issuePathToName(path: PathSegment[]): string | null {
+  const name = pathSegmentsToString(path)
+  return name || null
+}
+
+function pathsAreEqual(a: PathSegment[], b: PathSegment[]): boolean {
+  if (a.length !== b.length) {
+    return false
+  }
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) {
+      return false
+    }
+  }
+  return true
+}
+
+function pickSchemaError(issues: ZodIssue[], targetSegments: PathSegment[]): string | null {
+  for (const issue of issues) {
+    const issueSegments = issue.path as PathSegment[]
+    if (pathsAreEqual(issueSegments, targetSegments)) {
+      return issue.message
+    }
+  }
+  return null
 }

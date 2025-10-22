@@ -1,50 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { z } from 'zod'
 import FormCheckbox from './components/form/FormCheckbox.vue'
 import FormInput from './components/form/FormInput.vue'
 import FormRadioGroup from './components/form/FormRadioGroup.vue'
 import FormTextarea from './components/form/FormTextarea.vue'
 import { useFieldArray } from './composables/useFieldArray'
-import { useForm, type Validator } from './composables/useForm'
-
-interface Address {
-  street: string
-  city: string
-  country: string
-}
-
-type ContactMethod = 'email' | 'phone'
-
-interface ProfileFormValues {
-  profile: {
-    firstName: string
-    lastName: string
-    email: string
-    age: number | null
-    bio: string
-  }
-  preferences: {
-    contactMethod: ContactMethod
-    newsletter: boolean
-  }
-  addresses: Address[]
-}
-
-const required =
-  (message: string): Validator<string | number | null, ProfileFormValues> =>
-  (value) =>
-    value !== undefined && value !== null && value !== '' ? true : message
-
-const emailValidator = (message: string): Validator<string, ProfileFormValues> => (value) =>
-  !value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value)) ? true : message
-
-const adult = (message: string): Validator<number | null, ProfileFormValues> => (value) =>
-  value === null || Number(value) >= 18 ? true : message
-
-const minCharacters =
-  (limit: number, message: string): Validator<string, ProfileFormValues> =>
-  (value) =>
-    !value || value.length >= limit ? true : message
+import { useForm } from './composables/useForm'
 
 const contactOptions = [
   {
@@ -57,52 +19,62 @@ const contactOptions = [
     value: 'phone',
     description: 'We will follow up with a quick call to your phone number.',
   },
-] as const satisfies Array<{ label: string; value: ContactMethod; description: string }>
+] as const satisfies Array<{ label: string; value: 'email' | 'phone'; description: string }>
 
-const streetRule = { validate: required('Street is required') }
-const cityRule = { validate: required('City is required') }
-const countryRule = { validate: required('Country is required') }
+const addressSchema = z.object({
+  street: z.string().min(1, 'Street is required'),
+  city: z.string().min(1, 'City is required'),
+  country: z.string().min(1, 'Country is required'),
+})
+
+const profileSchema = z.object({
+  firstName: z.string().min(1, 'First name is required'),
+  lastName: z.string().min(1, 'Last name is required'),
+  email: z.string().email('Email must be valid'),
+  age: z.number().min(18, 'You must be at least 18 years old').nullable(),
+  bio: z.string().min(10, 'Tell us a little more (min. 10 characters)'),
+})
+
+const preferencesSchema = z.object({
+  contactMethod: z.enum(['email', 'phone']),
+  newsletter: z.boolean(),
+})
+
+const profileFormSchema = z.object({
+  profile: profileSchema,
+  preferences: preferencesSchema,
+  addresses: z
+    .array(addressSchema)
+    .min(1, 'Add at least one address'),
+})
+
+type ProfileFormValues = z.infer<typeof profileFormSchema>
+
+const createEmptyAddress = (): ProfileFormValues['addresses'][number] => ({
+  street: '',
+  city: '',
+  country: '',
+})
+
+const defaultValues: ProfileFormValues = {
+  profile: {
+    firstName: '',
+    lastName: '',
+    email: '',
+    age: null,
+    bio: '',
+  },
+  preferences: {
+    contactMethod: 'email',
+    newsletter: true,
+  },
+  addresses: [createEmptyAddress()],
+}
 
 const form = useForm<ProfileFormValues>({
   mode: 'onBlur',
-  schema: {
-    'profile.firstName': {
-      defaultValue: '',
-      validate: required('First name is required'),
-    },
-    'profile.lastName': {
-      defaultValue: '',
-      validate: required('Last name is required'),
-    },
-    'profile.email': {
-      defaultValue: '',
-      validate: [required('Email is required'), emailValidator('Email must be valid')],
-    },
-    'profile.age': {
-      defaultValue: null,
-      validate: adult('You must be at least 18 years old'),
-    },
-    'profile.bio': {
-      defaultValue: '',
-      validate: minCharacters(10, 'Tell us a little more (min. 10 characters)'),
-    },
-    'preferences.contactMethod': {
-      defaultValue: 'email',
-      validate: required('Select how we should reach you'),
-    },
-    'preferences.newsletter': {
-      defaultValue: true,
-    },
-    addresses: {
-      defaultValue: [
-        {
-          street: '',
-          city: '',
-          country: '',
-        },
-      ],
-    },
-  },
+  schema: profileFormSchema,
+  defaultValues,
 })
 
 const {
@@ -114,6 +86,8 @@ const {
   form,
   name: 'addresses',
 })
+
+const addressesError = computed(() => form.errors['addresses'])
 
 const submitted = ref<ProfileFormValues | null>(null)
 
@@ -128,6 +102,10 @@ const resetForm = () => {
 
 const isSubmitting = computed(() => form.formState.value.isSubmitting)
 const isDirty = computed(() => form.formState.value.isDirty)
+
+const addAddress = () => {
+  void appendAddress(createEmptyAddress())
+}
 </script>
 
 <template>
@@ -239,12 +217,16 @@ const isDirty = computed(() => form.formState.value.isDirty)
                 <button
                   type="button"
                   class="inline-flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 focus:ring-offset-white"
-                  @click="appendAddress({ street: '', city: '', country: '' })"
+                  @click="addAddress"
                 >
                   <span class="-mt-[1px] text-lg leading-none">＋</span>
                   Add address
                 </button>
               </div>
+
+              <p v-if="addressesError" class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-600">
+                {{ addressesError }}
+              </p>
 
               <div v-if="addressFields.length" class="space-y-4">
                 <div
@@ -291,7 +273,6 @@ const isDirty = computed(() => form.formState.value.isDirty)
                       :name="`addresses.${index}.street`"
                       label="Street"
                       placeholder="221B Baker Street"
-                      :register-options="streetRule"
                       required
                     />
                     <FormInput
@@ -299,7 +280,6 @@ const isDirty = computed(() => form.formState.value.isDirty)
                       :name="`addresses.${index}.city`"
                       label="City"
                       placeholder="London"
-                      :register-options="cityRule"
                       required
                     />
                     <FormInput
@@ -307,7 +287,6 @@ const isDirty = computed(() => form.formState.value.isDirty)
                       :name="`addresses.${index}.country`"
                       label="Country"
                       placeholder="United Kingdom"
-                      :register-options="countryRule"
                       required
                     />
                   </div>

@@ -57,6 +57,8 @@ export function useFieldArray<
   const { form, name, keyName = 'id' } = options
   const control = form.control
 
+  control.ensureFieldState(name)
+
   const entries = ref<FieldArrayEntry<TItem>[]>([])
   const idPrefix = `${name}-`
   let idCounter = 0
