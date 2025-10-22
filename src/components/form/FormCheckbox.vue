@@ -1,21 +1,32 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type {
+  FieldPath,
   RegisterFieldOptions,
   RegisteredFieldBinding,
   UseFormReturn,
 } from '../../composables/useForm'
 
-const props = defineProps<{
-  form: UseFormReturn<any>
-  name: string
+type FormValues<TForm extends UseFormReturn<any>> = TForm extends UseFormReturn<infer TValues>
+  ? TValues extends Record<string, any>
+    ? TValues
+    : Record<string, any>
+  : Record<string, any>
+
+type FormCheckboxProps<
+  TForm extends UseFormReturn<any> = UseFormReturn<any>,
+> = {
+  form: TForm
+  name: FieldPath<FormValues<TForm>>
   label?: string
   description?: string
   error?: string | null
   id?: string
   disabled?: boolean
-  registerOptions?: RegisterFieldOptions<any, any>
-}>()
+  registerOptions?: RegisterFieldOptions<any, FormValues<TForm>>
+}
+
+const props = defineProps<FormCheckboxProps>()
 
 const effectiveRegisterOptions = computed<RegisterFieldOptions<any, any>>(() => ({
   valueProp: 'checked',

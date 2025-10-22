@@ -13,6 +13,83 @@ import type { ZodIssue, ZodType } from 'zod'
 
 type MaybePromise<T> = T | Promise<T>
 type PathSegment = string | number
+type Keys<T> = Extract<keyof T, string>
+
+type Decrement = [0, 0, 1, 2, 3, 4, 5, 6]
+
+type DotPrefix<T extends string> = T extends '' ? '' : `.${T}`
+
+type FieldPathWithDepth<T, Depth extends number> = [Depth] extends [0]
+  ? never
+  : T extends ReadonlyArray<infer U>
+    ? FieldPathWithDepth<U, Decrement[Depth]> extends infer P
+      ? P extends string
+        ? `${number}` | `${number}${DotPrefix<P>}`
+        : `${number}`
+      : `${number}`
+    : T extends Record<string, any>
+      ? {
+          [K in Keys<T>]:
+            | `${K}`
+            | (FieldPathWithDepth<T[K], Decrement[Depth]> extends infer P
+                ? P extends string
+                  ? `${K}${DotPrefix<P>}`
+                  : never
+                : never)
+        }[Keys<T>]
+      : never
+
+export type FieldPath<TValues> = FieldPathWithDepth<TValues, 5>
+
+type FieldArrayPathInternal<T, Prefix extends string, Depth extends number> = [Depth] extends [0]
+  ? never
+  : T extends ReadonlyArray<infer U>
+    ? Prefix extends ''
+      ? FieldArrayPathInternal<U, `${number}`, Decrement[Depth]>
+      : Prefix | FieldArrayPathInternal<U, `${Prefix}.${number}`, Decrement[Depth]>
+    : T extends Record<string, any>
+      ? {
+          [K in Keys<T>]: FieldArrayPathInternal<
+            T[K],
+            Prefix extends '' ? `${K}` : `${Prefix}.${K}`,
+            Decrement[Depth]
+          >
+        }[Keys<T>]
+      : never
+
+export type FieldArrayPath<TValues> = Extract<
+  FieldArrayPathInternal<TValues, '', 5>,
+  string
+>
+
+type SplitPath<Path extends string> = Path extends `${infer Head}.${infer Rest}`
+  ? [Head, ...SplitPath<Rest>]
+  : Path extends ''
+    ? []
+    : [Path]
+
+type PathValue<T, Parts extends readonly string[]> = Parts extends [
+  infer Head extends string,
+  ...infer Rest extends string[],
+]
+  ? Head extends `${number}`
+    ? T extends ReadonlyArray<infer U>
+      ? PathValue<U, Rest>
+      : never
+    : Head extends keyof T
+      ? PathValue<T[Head], Rest>
+      : never
+  : T
+
+export type FieldPathValue<TValues, Path extends FieldPath<TValues>> = PathValue<
+  TValues,
+  SplitPath<Path>
+>
+
+export type FieldArrayElement<
+  TValues extends Record<string, any>,
+  Path extends FieldArrayPath<TValues>,
+> = FieldPathValue<TValues, Extract<`${Path}.${number}`, FieldPath<TValues>>>
 
 const modeToTriggerMap = {
   onSubmit: 'submit',
@@ -105,9 +182,13 @@ interface FieldConfig {
 export interface FormControl<TValues extends Record<string, any>> {
   values: TValues
   defaultValues: Ref<TValues>
-  getValue: (name: string) => any
-  setValue: (name: string, value: any, options?: SetValueOptions) => Promise<void>
-  ensureFieldState: (name: string) => FieldState
+  getValue: <Name extends FieldPath<TValues>>(name: Name) => FieldPathValue<TValues, Name>
+  setValue: <Name extends FieldPath<TValues>>(
+    name: Name,
+    value: FieldPathValue<TValues, Name>,
+    options?: SetValueOptions,
+  ) => Promise<void>
+  ensureFieldState: (name: FieldPath<TValues>) => FieldState
   subscribe: (event: FormEventName, listener: (payload?: any) => void) => () => void
 }
 
@@ -116,15 +197,22 @@ export interface UseFormReturn<TValues extends Record<string, any>> {
   defaultValues: Ref<TValues>
   fieldStates: Record<string, FieldState>
   errors: Record<string, string | null>
-  register: (name: string, options?: RegisterFieldOptions<any, TValues>) => RegisteredFieldBinding
-  unregister: (name: string, opts?: { keepState?: boolean; keepValue?: boolean }) => void
-  setValue: (name: string, value: any, options?: SetValueOptions) => Promise<void>
-  getValue: (name: string) => any
+  register: <Name extends FieldPath<TValues>>(
+    name: Name,
+    options?: RegisterFieldOptions<FieldPathValue<TValues, Name>, TValues>,
+  ) => RegisteredFieldBinding
+  unregister: (name: FieldPath<TValues>, opts?: { keepState?: boolean; keepValue?: boolean }) => void
+  setValue: <Name extends FieldPath<TValues>>(
+    name: Name,
+    value: FieldPathValue<TValues, Name>,
+    options?: SetValueOptions,
+  ) => Promise<void>
+  getValue: <Name extends FieldPath<TValues>>(name: Name) => FieldPathValue<TValues, Name>
   getValues: () => TValues
   reset: (values?: Partial<TValues>) => void
-  clearErrors: (name?: string | string[]) => void
-  setError: (name: string, error: string) => void
-  validate: (name?: string | string[]) => Promise<boolean>
+  clearErrors: (name?: FieldPath<TValues> | FieldPath<TValues>[]) => void
+  setError: (name: FieldPath<TValues>, error: string) => void
+  validate: (name?: FieldPath<TValues> | FieldPath<TValues>[]) => Promise<boolean>
   handleSubmit: (
     onValid: SubmitHandler<TValues>,
     onInvalid?: InvalidSubmitHandler<TValues>,
@@ -145,10 +233,10 @@ export type InvalidSubmitHandler<TValues extends Record<string, any>> = (
 ) => MaybePromise<void>
 
 type WatchAllCallback<TValues extends Record<string, any>> = (values: TValues) => void
-type WatchFieldCallback<TValues extends Record<string, any>> = (
-  value: any,
-  values: TValues,
-) => void
+type WatchFieldCallback<
+  TValues extends Record<string, any>,
+  Name extends FieldPath<TValues> = FieldPath<TValues>,
+> = (value: FieldPathValue<TValues, Name>, values: TValues) => void
 type WatchFieldsCallback<TValues extends Record<string, any>> = (
   values: any[],
   formValues: TValues,
@@ -156,8 +244,8 @@ type WatchFieldsCallback<TValues extends Record<string, any>> = (
 
 export interface WatchValues<TValues extends Record<string, any>> {
   (callback: WatchAllCallback<TValues>): WatchStopHandle
-  (name: string, callback: WatchFieldCallback<TValues>): WatchStopHandle
-  (names: string[], callback: WatchFieldsCallback<TValues>): WatchStopHandle
+  (name: FieldPath<TValues>, callback: WatchFieldCallback<TValues>): WatchStopHandle
+  (names: FieldPath<TValues>[], callback: WatchFieldsCallback<TValues>): WatchStopHandle
 }
 
 export function useForm<TValues extends Record<string, any> = Record<string, any>>(
@@ -213,10 +301,14 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
     }
   })
 
-  async function setValue(name: string, value: any, options: SetValueOptions = {}): Promise<void> {
+  async function setValueInternal(
+    name: string,
+    value: any,
+    options: SetValueOptions = {},
+  ): Promise<void> {
     const segments = parsePath(name)
     const config = ensureFieldConfig(name)
-    const state = ensureFieldState(name)
+    const state = ensureFieldStateInternal(name)
 
     const shouldDirty =
       options.shouldDirty !== undefined
@@ -244,17 +336,25 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
     }
   }
 
-  function getValue(name: string): any {
-    return getDeepValue(values, name)
+  const setValue = async <Name extends FieldPath<TValues>>(
+    name: Name,
+    value: FieldPathValue<TValues, Name>,
+    options: SetValueOptions = {},
+  ): Promise<void> => {
+    await setValueInternal(name, value, options)
+  }
+
+  const getValue = <Name extends FieldPath<TValues>>(name: Name): FieldPathValue<TValues, Name> => {
+    return getDeepValue(values, name) as FieldPathValue<TValues, Name>
   }
 
   function getValues(): TValues {
     return deepClone(toRaw(values))
   }
 
-  function register(
-    name: string,
-    options: RegisterFieldOptions<any, TValues> = {},
+  function register<Name extends FieldPath<TValues>>(
+    name: Name,
+    options: RegisterFieldOptions<FieldPathValue<TValues, Name>, TValues> = {},
   ): RegisteredFieldBinding {
     const segments = parsePath(name)
 
@@ -265,7 +365,7 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
     }
 
     const config = ensureFieldConfig(name)
-    const state = ensureFieldState(name)
+    const state = ensureFieldStateInternal(name)
 
     const validators = normalizeValidators(options.validate)
     if (validators.length) {
@@ -348,7 +448,7 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
     return binding
   }
 
-  function unregister(name: string, opts?: { keepState?: boolean; keepValue?: boolean }) {
+  function unregister(name: FieldPath<TValues>, opts?: { keepState?: boolean; keepValue?: boolean }) {
     const options = opts ?? {}
 
     if (!options.keepValue) {
@@ -368,7 +468,7 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
     }
   }
 
-  function clearErrors(name?: string | string[]) {
+  function clearErrors(name?: FieldPath<TValues> | FieldPath<TValues>[]) {
     if (!name) {
       Object.keys(errors).forEach((field) => {
         errors[field] = null
@@ -390,14 +490,14 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
     })
   }
 
-  function setError(name: string, error: string) {
-    const state = ensureFieldState(name)
+  function setError(name: FieldPath<TValues>, error: string) {
+    const state = ensureFieldStateInternal(name)
     state.error = error
     errors[name] = error
   }
 
   async function validateField(name: string, schemaIssues?: ZodIssue[]): Promise<boolean> {
-    const state = ensureFieldState(name)
+    const state = ensureFieldStateInternal(name)
     const config = ensureFieldConfig(name)
     const validators = state.validators
 
@@ -448,8 +548,10 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
     }
   }
 
-  async function validate(name?: string | string[]): Promise<boolean> {
-    const fieldsToValidate = name
+  async function validate(
+    name?: FieldPath<TValues> | FieldPath<TValues>[],
+  ): Promise<boolean> {
+    const fieldsToValidate: string[] = name
       ? Array.isArray(name)
         ? [...new Set(name)]
         : [name]
@@ -463,7 +565,7 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
         .filter((pathName): pathName is string => Boolean(pathName))
 
       issuePaths.forEach((pathName) => {
-        ensureFieldState(pathName)
+        ensureFieldStateInternal(pathName)
         if (!fieldsToValidate.includes(pathName)) {
           fieldsToValidate.push(pathName)
         }
@@ -502,7 +604,7 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
   }
 
   function watchValuesImpl(
-    arg0: string | string[] | WatchAllCallback<TValues>,
+    arg0: FieldPath<TValues> | FieldPath<TValues>[] | WatchAllCallback<TValues>,
     arg1?: WatchFieldCallback<TValues> | WatchFieldsCallback<TValues>,
   ): WatchStopHandle {
     if (typeof arg0 === 'function') {
@@ -569,7 +671,7 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
     }
   }
 
-  function ensureFieldState(name: string): FieldState {
+  function ensureFieldStateInternal(name: string): FieldState {
     if (!fieldStates[name]) {
       fieldStates[name] = reactive<FieldState>({
         touched: false,
@@ -582,6 +684,8 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
     }
     return fieldStates[name]
   }
+
+  const ensureFieldState = (name: FieldPath<TValues>): FieldState => ensureFieldStateInternal(name)
 
   function ensureFieldConfig(name: string): FieldConfig {
     if (!fieldConfigs.has(name)) {
@@ -655,7 +759,7 @@ export function useForm<TValues extends Record<string, any> = Record<string, any
         return
       }
       seen.add(name)
-      const state = ensureFieldState(name)
+      const state = ensureFieldStateInternal(name)
       state.error = issue.message
       errors[name] = issue.message
     })

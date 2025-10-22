@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type {
+  FieldPath,
   RegisterFieldOptions,
   RegisteredFieldBinding,
   UseFormReturn,
@@ -13,23 +14,30 @@ interface RadioOption<T = any> {
   id?: string
 }
 
-const props = withDefaults(
-  defineProps<{
-    form: UseFormReturn<any>
-    name: string
-    label?: string
-    description?: string
-    error?: string | null
-    options: RadioOption[]
-    inline?: boolean
-    disabled?: boolean
-    registerOptions?: RegisterFieldOptions<any, any>
-  }>(),
-  {
-    options: () => [],
-    inline: false,
-  },
-)
+type FormValues<TForm extends UseFormReturn<any>> = TForm extends UseFormReturn<infer TValues>
+  ? TValues extends Record<string, any>
+    ? TValues
+    : Record<string, any>
+  : Record<string, any>
+
+type FormRadioGroupProps<
+  TForm extends UseFormReturn<any> = UseFormReturn<any>,
+> = {
+  form: TForm
+  name: FieldPath<FormValues<TForm>>
+  label?: string
+  description?: string
+  error?: string | null
+  options: RadioOption[]
+  inline?: boolean
+  disabled?: boolean
+  registerOptions?: RegisterFieldOptions<any, FormValues<TForm>>
+}
+
+const props = withDefaults(defineProps<FormRadioGroupProps>(), {
+  options: () => [],
+  inline: false,
+})
 
 const binding = ref<RegisteredFieldBinding>(
   props.form.register(props.name, props.registerOptions),

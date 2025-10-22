@@ -1,29 +1,37 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type {
+  FieldPath,
   RegisterFieldOptions,
   RegisteredFieldBinding,
   UseFormReturn,
 } from '../../composables/useForm'
 
-const props = withDefaults(
-  defineProps<{
-    form: UseFormReturn<any>
-    name: string
-    label?: string
-    description?: string
-    error?: string | null
-    type?: string
-    placeholder?: string
-    id?: string
-    required?: boolean
-    disabled?: boolean
-    registerOptions?: RegisterFieldOptions<any, any>
-  }>(),
-  {
-    type: 'text',
-  },
-)
+type FormValues<TForm extends UseFormReturn<any>> = TForm extends UseFormReturn<infer TValues>
+  ? TValues extends Record<string, any>
+    ? TValues
+    : Record<string, any>
+  : Record<string, any>
+
+type FormInputProps<
+  TForm extends UseFormReturn<any> = UseFormReturn<any>,
+> = {
+  form: TForm
+  name: FieldPath<FormValues<TForm>>
+  label?: string
+  description?: string
+  error?: string | null
+  type?: string
+  placeholder?: string
+  id?: string
+  required?: boolean
+  disabled?: boolean
+  registerOptions?: RegisterFieldOptions<any, FormValues<TForm>>
+}
+
+const props = withDefaults(defineProps<FormInputProps>(), {
+  type: 'text',
+})
 
 const binding = ref<RegisteredFieldBinding>(
   props.form.register(props.name, props.registerOptions),
@@ -77,7 +85,7 @@ const errorMessage = computed(
       :aria-invalid="errorMessage ? 'true' : undefined"
       :aria-describedby="describedById"
       :class="[
-        'block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-60',
+        'block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm transition focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 disabled:cursor-not-allowed disabled:opacity-60 placeholder-slate-400',
         errorMessage ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/40' : '',
       ]"
     />

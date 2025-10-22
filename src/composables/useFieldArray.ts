@@ -1,5 +1,11 @@
 import { computed, onBeforeUnmount, ref, watch, type ComputedRef } from 'vue'
-import type { SetValueOptions, UseFormReturn } from './useForm'
+import type {
+  FieldArrayElement,
+  FieldArrayPath,
+  FieldPath,
+  SetValueOptions,
+  UseFormReturn,
+} from './useForm'
 
 interface FieldArrayEntry<TItem> {
   id: string
@@ -9,28 +15,12 @@ interface FieldArrayEntry<TItem> {
 
 type FieldArrayField<TItem> = FieldArrayEntry<TItem> & Record<string, any>
 
-type JoinPath<Prefix extends string, Key extends string> = Prefix extends ''
-  ? Key
-  : `${Prefix}.${Key}`
-
-type ArrayFieldPathInternal<T, Prefix extends string = ''> = {
-  [K in keyof T & string]:
-    T[K] extends ReadonlyArray<any> | Array<any>
-      ? JoinPath<Prefix, K>
-      : T[K] extends Record<string, any>
-        ? ArrayFieldPathInternal<T[K], JoinPath<Prefix, K>>
-        : never
-}[keyof T & string]
-
-type ArrayFieldPath<T> = Extract<ArrayFieldPathInternal<T>, string> extends infer P
-  ? [P] extends [never]
-    ? string
-    : Extract<P, string>
-  : string
-
-export interface UseFieldArrayOptions<TValues extends Record<string, any>> {
+export interface UseFieldArrayOptions<
+  TValues extends Record<string, any>,
+  TName extends FieldArrayPath<TValues>,
+> {
   form: UseFormReturn<TValues>
-  name: ArrayFieldPath<TValues>
+  name: TName
   keyName?: string
 }
 
@@ -52,12 +42,13 @@ export interface UseFieldArrayReturn<TItem> {
 
 export function useFieldArray<
   TValues extends Record<string, any>,
-  TItem = any,
->(options: UseFieldArrayOptions<TValues>): UseFieldArrayReturn<TItem> {
+  TName extends FieldArrayPath<TValues>,
+  TItem = FieldArrayElement<TValues, TName>,
+>(options: UseFieldArrayOptions<TValues, TName>): UseFieldArrayReturn<TItem> {
   const { form, name, keyName = 'id' } = options
   const control = form.control
 
-  control.ensureFieldState(name)
+  control.ensureFieldState(name as FieldPath<TValues>)
 
   const entries = ref<FieldArrayEntry<TItem>[]>([])
   const idPrefix = `${name}-`
@@ -66,7 +57,7 @@ export function useFieldArray<
   const createId = () => `${idPrefix}${idCounter++}`
 
   function getCurrentArray(): TItem[] {
-    const current = control.getValue(name)
+    const current = control.getValue(name as FieldPath<TValues>) as unknown as TItem[]
     if (Array.isArray(current)) {
       return current as TItem[]
     }
@@ -92,7 +83,7 @@ export function useFieldArray<
 
   async function commitArray(nextArray: TItem[], options?: FieldArrayUpdateOptions) {
     const payload = nextArray.slice()
-    await control.setValue(name, payload, {
+    await control.setValue(name as FieldPath<TValues>, payload as any, {
       shouldDirty: options?.shouldDirty ?? true,
       shouldTouch: options?.shouldTouch ?? true,
       shouldValidate: options?.shouldValidate ?? false,
@@ -187,7 +178,7 @@ export function useFieldArray<
   }
 
   const stopWatch = watch(
-    () => control.getValue(name),
+    () => control.getValue(name as FieldPath<TValues>),
     () => {
       syncFromValues()
     },

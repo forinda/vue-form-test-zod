@@ -82,7 +82,7 @@ const {
   append: appendAddress,
   remove: removeAddress,
   move: moveAddress,
-} = useFieldArray<ProfileFormValues, ProfileFormValues['addresses'][number]>({
+} = useFieldArray({
   form,
   name: 'addresses',
 })
